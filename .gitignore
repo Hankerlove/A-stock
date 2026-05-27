@@ -6,7 +6,7 @@ dist/
 build/
 
 # Data
-data/
+/data/
 
 # Logs
 logs/
