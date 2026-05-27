@@ -1,0 +1,15 @@
+tushare:
+  token: "${TUSHARE_TOKEN}"
+
+storage:
+  data_dir: "data/"
+  db_path: "data/astock.duckdb"
+
+sync:
+  batch_size: 5000
+  retry: 3
+  retry_delay: 5
+
+log:
+  level: "INFO"
+  file: "logs/astock.log"

@@ -1,0 +1,16 @@
+name: astock
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python >=3.11,<3.13
+  - pip
+  - pyarrow
+  - pandas
+  - pyyaml
+  - pip:
+      - tushare
+      - duckdb
+      - typer
+      - pytest
+      - pytest-cov
