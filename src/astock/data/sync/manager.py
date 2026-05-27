@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
@@ -150,17 +151,27 @@ class SyncManager:
             None if mode == "full" or not self.store.table_exists("daily")
             else self.store.get_latest_date("daily", "trade_date")
         )
+        # Overlap 5 calendar days on resume to catch incomplete dates from prior failures
+        if latest is not None and mode != "full":
+            overlap_dt = datetime.strptime(latest, "%Y%m%d") - timedelta(days=5)
+            latest = overlap_dt.strftime("%Y%m%d")
         trade_days = self._get_trade_days_since(latest)
+        batch_size = min(self.config.batch_size, 1000)
         total_rows = 0
         for trade_date in trade_days:
             active_stocks = self._get_active_stocks(trade_date)
-            for i in range(0, len(active_stocks), self.config.batch_size):
-                batch = active_stocks[i:i + self.config.batch_size]
+            date_rows = []
+            for i in range(0, len(active_stocks), batch_size):
+                batch = active_stocks[i:i + batch_size]
                 ts_codes = ",".join(batch)
                 df = self.client.fetch_daily(ts_code=ts_codes, trade_date=trade_date)
                 if not df.empty:
-                    self.store.save("daily", df, mode="append")
-                    total_rows += len(df)
+                    date_rows.append(df)
+                time.sleep(0.4)
+            if date_rows:
+                merged = pd.concat(date_rows, ignore_index=True)
+                self.store.save("daily", merged, mode="append")
+                total_rows += len(merged)
         return SyncResult(table="daily", mode=mode, rows=total_rows, status="success")
 
     def _sync_adj_factor(self, mode: str) -> SyncResult:
@@ -175,6 +186,7 @@ class SyncManager:
             if not df.empty:
                 self.store.save("adj_factor", df, mode="append")
                 total_rows += len(df)
+            time.sleep(0.4)
         return SyncResult(table="adj_factor", mode=mode, rows=total_rows, status="success")
 
     def _sync_daily_basic(self, mode: str) -> SyncResult:
@@ -189,6 +201,7 @@ class SyncManager:
             if not df.empty:
                 self.store.save("daily_basic", df, mode="append")
                 total_rows += len(df)
+            time.sleep(0.4)
         return SyncResult(table="daily_basic", mode=mode, rows=total_rows, status="success")
 
     def _sync_suspend_d(self, mode: str) -> SyncResult:
@@ -204,4 +217,5 @@ class SyncManager:
                 if not df.empty:
                     self.store.save("suspend_d", df, mode="append")
                     total_rows += len(df)
+                time.sleep(0.4)
         return SyncResult(table="suspend_d", mode=mode, rows=total_rows, status="success")
