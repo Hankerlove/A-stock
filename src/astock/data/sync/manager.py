@@ -91,7 +91,7 @@ class SyncManager:
         trade_days = trade_cal[
             (trade_cal["cal_date"] >= start) &
             (trade_cal["cal_date"] <= today) &
-            (trade_cal["is_open"] == "1")
+            (trade_cal["is_open"].astype(str) == "1")
         ]["cal_date"].sort_values().tolist()
         return trade_days
 

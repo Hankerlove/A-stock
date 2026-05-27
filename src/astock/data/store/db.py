@@ -76,7 +76,7 @@ class DataStore:
         df = self.load("trade_cal", cal_date=date)
         if df.empty:
             return False
-        return df.iloc[0]["is_open"] == "1"
+        return df.iloc[0]["is_open"] in (1, "1")
 
     def get_suspended_stocks(self, date: str) -> list[str]:
         if not self.table_exists("suspend_d"):
