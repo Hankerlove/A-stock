@@ -40,14 +40,14 @@ astock config show
 
 ## 数据表
 
-| 表名 | 内容 | 需要积分 |
+| 表名 | 内容 | 进度 |
 |------|------|----------|
-| stock_basic | 股票基础信息 | 2000 |
-| trade_cal | 交易日历 | 2000 |
-| daily | 日线行情（未复权） | 基础 |
-| adj_factor | 复权因子 | 2000 |
-| daily_basic | 每日指标（PE/PB等） | 2000 |
-| suspend_d | 停复牌记录 | 未标注 |
+| stock_basic | 股票基础信息 | Done |
+| trade_cal | 交易日历 | Done |
+| daily | 日线行情（未复权） | Done |
+| adj_factor | 复权因子 | Done |
+| daily_basic | 每日指标（PE/PB等） | Done |
+| suspend_d | 停复牌记录 | Done |
 
 ## 项目结构
 

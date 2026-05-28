@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+pytest_cache/
 
 # Data
 /data/
@@ -24,3 +25,6 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+#docs
+docs/
