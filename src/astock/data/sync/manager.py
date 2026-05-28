@@ -113,8 +113,10 @@ class SyncManager:
 
     def _sync_stock_basic(self, mode: str) -> SyncResult:
         try:
+            print("  [stock_basic] 拉取中...", flush=True)
             df = self.client.fetch_stock_basic()
             self.store.save("stock_basic", df, mode="replace")
+            print(f"  [stock_basic] 完成，{len(df)} 条记录", flush=True)
             return SyncResult(
                 table="stock_basic", mode=mode, rows=len(df), status="success",
             )
@@ -126,11 +128,13 @@ class SyncManager:
 
     def _sync_trade_cal(self, mode: str) -> SyncResult:
         if mode == "full" or not self.store.table_exists("trade_cal"):
+            print("  [trade_cal] 全量拉取 SSE + SZSE ...", flush=True)
             today = datetime.now().strftime("%Y%m%d")
             df_sse = self.client.fetch_trade_cal(exchange="SSE", start_date="19900101", end_date=today)
             df_szse = self.client.fetch_trade_cal(exchange="SZSE", start_date="19900101", end_date=today)
             df = pd.concat([df_sse, df_szse]).drop_duplicates()
             self.store.save("trade_cal", df, mode="replace")
+            print(f"  [trade_cal] 完成，{len(df)} 条记录", flush=True)
             return SyncResult(table="trade_cal", mode="full", rows=len(df), status="success")
         else:
             latest = self.store.get_latest_date("trade_cal", "cal_date")
@@ -152,10 +156,18 @@ class SyncManager:
             else self.store.get_latest_date("daily", "trade_date")
         )
         trade_days = self._get_trade_days_since(latest)
+        if not trade_days:
+            print("  [daily] 已是最新", flush=True)
+            return SyncResult(table="daily", mode=mode, rows=0, status="success")
+
         batch_size = min(self.config.batch_size, 1000)
         total_rows = 0
-        for trade_date in trade_days:
+        total_dates = len(trade_days)
+        print(f"  [daily] 共 {total_dates} 个交易日待同步 (batch={batch_size})", flush=True)
+
+        for idx, trade_date in enumerate(trade_days):
             active_stocks = self._get_active_stocks(trade_date)
+            batches = (len(active_stocks) + batch_size - 1) // batch_size
             date_rows = []
             for i in range(0, len(active_stocks), batch_size):
                 batch = active_stocks[i:i + batch_size]
@@ -168,6 +180,13 @@ class SyncManager:
                 merged = pd.concat(date_rows, ignore_index=True)
                 self.store.save("daily", merged, mode="append")
                 total_rows += len(merged)
+
+            # 进度：每 50 个交易日或最后一个打印
+            if (idx + 1) % 50 == 0 or idx == total_dates - 1:
+                pct = (idx + 1) * 100 // total_dates
+                print(f"  [daily] {idx + 1}/{total_dates} ({pct}%)  {trade_date}  "
+                      f"stocks={len(active_stocks)} 累计={total_rows:,}行", flush=True)
+
         return SyncResult(table="daily", mode=mode, rows=total_rows, status="success")
 
     def _sync_adj_factor(self, mode: str) -> SyncResult:
@@ -176,13 +195,25 @@ class SyncManager:
             else self.store.get_latest_date("adj_factor", "trade_date")
         )
         trade_days = self._get_trade_days_since(latest)
+        if not trade_days:
+            print("  [adj_factor] 已是最新", flush=True)
+            return SyncResult(table="adj_factor", mode=mode, rows=0, status="success")
+
         total_rows = 0
-        for trade_date in trade_days:
+        total_dates = len(trade_days)
+        print(f"  [adj_factor] 共 {total_dates} 个交易日待同步", flush=True)
+
+        for idx, trade_date in enumerate(trade_days):
             df = self.client.fetch_adj_factor(trade_date=trade_date)
             if not df.empty:
                 self.store.save("adj_factor", df, mode="append")
                 total_rows += len(df)
             time.sleep(0.4)
+            if (idx + 1) % 100 == 0 or idx == total_dates - 1:
+                pct = (idx + 1) * 100 // total_dates
+                print(f"  [adj_factor] {idx + 1}/{total_dates} ({pct}%)  "
+                      f"{trade_date} 累计={total_rows:,}行", flush=True)
+
         return SyncResult(table="adj_factor", mode=mode, rows=total_rows, status="success")
 
     def _sync_daily_basic(self, mode: str) -> SyncResult:
@@ -191,13 +222,25 @@ class SyncManager:
             else self.store.get_latest_date("daily_basic", "trade_date")
         )
         trade_days = self._get_trade_days_since(latest)
+        if not trade_days:
+            print("  [daily_basic] 已是最新", flush=True)
+            return SyncResult(table="daily_basic", mode=mode, rows=0, status="success")
+
         total_rows = 0
-        for trade_date in trade_days:
+        total_dates = len(trade_days)
+        print(f"  [daily_basic] 共 {total_dates} 个交易日待同步", flush=True)
+
+        for idx, trade_date in enumerate(trade_days):
             df = self.client.fetch_daily_basic(trade_date=trade_date)
             if not df.empty:
                 self.store.save("daily_basic", df, mode="append")
                 total_rows += len(df)
             time.sleep(0.4)
+            if (idx + 1) % 100 == 0 or idx == total_dates - 1:
+                pct = (idx + 1) * 100 // total_dates
+                print(f"  [daily_basic] {idx + 1}/{total_dates} ({pct}%)  "
+                      f"{trade_date} 累计={total_rows:,}行", flush=True)
+
         return SyncResult(table="daily_basic", mode=mode, rows=total_rows, status="success")
 
     def _sync_suspend_d(self, mode: str) -> SyncResult:
@@ -206,12 +249,24 @@ class SyncManager:
             else self.store.get_latest_date("suspend_d", "trade_date")
         )
         trade_days = self._get_trade_days_since(latest)
+        if not trade_days:
+            print("  [suspend_d] 已是最新", flush=True)
+            return SyncResult(table="suspend_d", mode=mode, rows=0, status="success")
+
         total_rows = 0
-        for trade_date in trade_days:
+        total_dates = len(trade_days)
+        print(f"  [suspend_d] 共 {total_dates} 个交易日待同步", flush=True)
+
+        for idx, trade_date in enumerate(trade_days):
             for stype in ["S", "R"]:
                 df = self.client.fetch_suspend_d(trade_date=trade_date, suspend_type=stype)
                 if not df.empty:
                     self.store.save("suspend_d", df, mode="append")
                     total_rows += len(df)
                 time.sleep(0.4)
+            if (idx + 1) % 50 == 0 or idx == total_dates - 1:
+                pct = (idx + 1) * 100 // total_dates
+                print(f"  [suspend_d] {idx + 1}/{total_dates} ({pct}%)  "
+                      f"{trade_date} 累计={total_rows:,}行", flush=True)
+
         return SyncResult(table="suspend_d", mode=mode, rows=total_rows, status="success")
