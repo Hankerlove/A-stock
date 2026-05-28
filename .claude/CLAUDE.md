@@ -36,6 +36,11 @@ Phase 1: 数据同步系统（进行中）
 - Phase 2: 选股策略（ML/DL/LLM）
 - Phase 3: 回测引擎
 
+## 协作规范
+
+- 使用中文回答
+- 修改文件后，简要说明修改内容和目的
+
 ## 运行方式
 
 1. `conda activate astock`
