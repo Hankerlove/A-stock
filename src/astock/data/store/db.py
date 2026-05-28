@@ -42,7 +42,7 @@ class DataStore:
     def load(self, table: str, **filters) -> pd.DataFrame:
         table_dir = self._table_dir(table)
         parquet_glob = str(table_dir / "*.parquet")
-        query = f"SELECT * FROM read_parquet('{parquet_glob}')"
+        query = f"SELECT * FROM read_parquet('{parquet_glob}', union_by_name=true)"
         if filters:
             conditions = []
             for k, v in filters.items():
@@ -62,7 +62,7 @@ class DataStore:
         table_dir = self._table_dir(table)
         parquet_glob = str(table_dir / "*.parquet")
         result = self._conn.execute(
-            f"SELECT MAX({date_col}) FROM read_parquet('{parquet_glob}')"
+            f"SELECT MAX({date_col}) FROM read_parquet('{parquet_glob}', union_by_name=true)"
         ).fetchone()
         return result[0] if result and result[0] else None
 
@@ -90,7 +90,7 @@ class DataStore:
         table_dir = self._table_dir(table)
         parquet_glob = str(table_dir / "*.parquet")
         result = self._conn.execute(
-            f"SELECT COUNT(*) FROM read_parquet('{parquet_glob}')"
+            f"SELECT COUNT(*) FROM read_parquet('{parquet_glob}', union_by_name=true)"
         ).fetchone()
         return result[0] if result else 0
 
