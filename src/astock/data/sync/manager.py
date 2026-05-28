@@ -151,10 +151,6 @@ class SyncManager:
             None if mode == "full" or not self.store.table_exists("daily")
             else self.store.get_latest_date("daily", "trade_date")
         )
-        # Overlap 5 calendar days on resume to catch incomplete dates from prior failures
-        if latest is not None and mode != "full":
-            overlap_dt = datetime.strptime(latest, "%Y%m%d") - timedelta(days=5)
-            latest = overlap_dt.strftime("%Y%m%d")
         trade_days = self._get_trade_days_since(latest)
         batch_size = min(self.config.batch_size, 1000)
         total_rows = 0

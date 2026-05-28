@@ -93,3 +93,14 @@ class DataStore:
             f"SELECT COUNT(*) FROM read_parquet('{parquet_glob}')"
         ).fetchone()
         return result[0] if result else 0
+
+    def deduplicate(self, table: str, subset: list[str]) -> int:
+        """Remove duplicate rows by key columns. Returns number of rows removed."""
+        if not self.table_exists(table):
+            return 0
+        df = self.load(table)
+        before = len(df)
+        df = df.drop_duplicates(subset=subset)
+        after = len(df)
+        self.save(table, df, mode="replace")
+        return before - after
