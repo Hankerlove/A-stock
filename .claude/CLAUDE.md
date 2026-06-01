@@ -20,6 +20,7 @@ A 股量化交易系统。第一阶段：本地数据同步系统。
 - `src/astock/data/source/` — Tushare API 客户端（含指数退避重试）
 - `src/astock/data/sync/` — 同步管理器（6 表级联依赖，日期原子化保存）
 - `src/astock/data/store/` — DuckDB + Parquet 存储层（含去重）
+- `src/astock/data/indicator/` — 技术指标计算（纯 numpy，前复权）
 - `src/astock/cli/` — Typer 命令入口（config/data/cal/strategy/backtest 五组子命令）
 - `tools/verify_data.py` — 数据完整性校验脚本（5 项检查）
 - `tools/deduplicate.py` — 按主键去重脚本（用户自维护）
@@ -29,7 +30,7 @@ A 股量化交易系统。第一阶段：本地数据同步系统。
 ## 当前阶段
 
 Phase 1: 数据同步系统（进行中）
-- 6 张核心表：stock_basic, trade_cal, daily, adj_factor, daily_basic, suspend_d
+- 7 张核心表：stock_basic, trade_cal, daily, adj_factor, daily_basic, suspend_d, tech_indicator
 - 级联依赖检查：单表同步自动更新依赖表
 - 边界处理：停牌/退市/新股/除权除息
 

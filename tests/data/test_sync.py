@@ -100,11 +100,12 @@ class TestSyncManager:
 
     def test_sync_all_respects_order(self, sync_manager):
         results = sync_manager.sync_all()
-        assert len(results) == 6
+        assert len(results) == 7
         tables = [r.table for r in results]
         assert tables == [
             "stock_basic", "trade_cal", "daily",
             "adj_factor", "daily_basic", "suspend_d",
+            "tech_indicator",
         ]
 
     def test_sync_table_with_dependency(self, sync_manager):

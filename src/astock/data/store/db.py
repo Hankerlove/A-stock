@@ -32,7 +32,7 @@ class DataStore:
         tmp_path = table_dir / f".{fname}.tmp"
         final_path = table_dir / fname
         try:
-            df.to_parquet(tmp_path, engine="pyarrow")
+            df.to_parquet(tmp_path, engine="pyarrow", index=False)
             tmp_path.rename(final_path)
         except Exception as e:
             if tmp_path.exists():
@@ -100,7 +100,7 @@ class DataStore:
             return 0
         df = self.load(table)
         before = len(df)
-        df = df.drop_duplicates(subset=subset)
+        df = df.drop_duplicates(subset=subset, keep="last")
         after = len(df)
         self.save(table, df, mode="replace")
         return before - after

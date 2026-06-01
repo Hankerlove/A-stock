@@ -6,6 +6,7 @@ from typing import Literal
 import pandas as pd
 
 from astock.core.config import SyncConfig
+from astock.data.indicator.compute import compute_indicators
 from astock.data.source.client import TushareClient
 from astock.data.store.db import DataStore
 
@@ -16,6 +17,7 @@ DEPENDENCIES = {
     "adj_factor": ["daily"],
     "daily_basic": ["daily"],
     "suspend_d": ["stock_basic"],
+    "tech_indicator": ["daily", "adj_factor"],
 }
 
 TABLE_DATE_COLS = {
@@ -25,9 +27,10 @@ TABLE_DATE_COLS = {
     "adj_factor": "trade_date",
     "daily_basic": "trade_date",
     "suspend_d": "trade_date",
+    "tech_indicator": "trade_date",
 }
 
-SYNC_ORDER = ["stock_basic", "trade_cal", "daily", "adj_factor", "daily_basic", "suspend_d"]
+SYNC_ORDER = ["stock_basic", "trade_cal", "daily", "adj_factor", "daily_basic", "suspend_d", "tech_indicator"]
 
 
 @dataclass
@@ -270,3 +273,80 @@ class SyncManager:
                       f"{trade_date} 累计={total_rows:,}行", flush=True)
 
         return SyncResult(table="suspend_d", mode=mode, rows=total_rows, status="success")
+
+    def _sync_tech_indicator(self, mode: str) -> SyncResult:
+        is_full = mode == "full" or not self.store.table_exists("tech_indicator")
+        latest = None if is_full else self.store.get_latest_date("tech_indicator", "trade_date")
+        trade_days = self._get_trade_days_since(latest)
+        if not is_full and not trade_days:
+            print("  [tech_indicator] 已是最新", flush=True)
+            return SyncResult(table="tech_indicator", mode=mode, rows=0, status="success")
+
+        if is_full:
+            print("  [tech_indicator] 全量模式，加载 daily + adj_factor ...", flush=True)
+        else:
+            print(f"  [tech_indicator] 增量模式，{len(trade_days)} 个新交易日", flush=True)
+
+        daily = self.store.load("daily")
+        adj = self.store.load("adj_factor")
+
+        # 清理遗留列
+        for c in ["__index_level_0__", "__index_level_0__"]:
+            if c in daily.columns:
+                daily = daily.drop(columns=[c])
+            if c in adj.columns:
+                adj = adj.drop(columns=[c])
+
+        merged = pd.merge(daily, adj, on=["ts_code", "trade_date"], how="inner")
+        merged = merged.sort_values(["ts_code", "trade_date"])
+
+        results = []
+        stocks = self.store.load("stock_basic")
+        active_codes = set(stocks[stocks["list_status"] == "L"]["ts_code"].tolist())
+        groups = merged.groupby("ts_code")
+        total_stocks = groups.ngroups
+        processed = 0
+        total_saved = 0
+
+        for ts_code, group in groups:
+            if ts_code not in active_codes:
+                continue
+            group = group.sort_values("trade_date")
+            latest_adj = group["adj_factor"].iloc[-1]
+            if latest_adj == 0:
+                continue
+
+            group = group.copy()
+            ratio = group["adj_factor"].to_numpy(dtype=float) / float(latest_adj)
+            group["adj_open"] = group["open"].to_numpy(dtype=float) * ratio
+            group["adj_high"] = group["high"].to_numpy(dtype=float) * ratio
+            group["adj_low"] = group["low"].to_numpy(dtype=float) * ratio
+            group["adj_close"] = group["close"].to_numpy(dtype=float) * ratio
+
+            indicators = compute_indicators(group)
+            if not is_full and trade_days:
+                indicators = indicators[indicators["trade_date"].isin(trade_days)]
+
+            if not indicators.empty and not indicators.iloc[:, 2:].isna().all(axis=1).all():
+                results.append(indicators)
+                total_saved += len(indicators)
+
+            processed += 1
+            if processed % 200 == 0:
+                pct = processed * 100 // total_stocks
+                print(f"  [tech_indicator] {processed}/{total_stocks} ({pct}%)  "
+                      f"累计={total_saved:,}行", flush=True)
+
+        if results:
+            final = pd.concat(results, ignore_index=True)
+            save_mode = "replace" if is_full else "append"
+            self.store.save("tech_indicator", final, mode=save_mode)
+            if not is_full:
+                removed = self.store.deduplicate("tech_indicator", ["ts_code", "trade_date"])
+                if removed > 0:
+                    print(f"  [tech_indicator] 去重删除 {removed} 行", flush=True)
+            print(f"  [tech_indicator] 完成，{total_saved:,} 行 ({save_mode})", flush=True)
+        else:
+            print("  [tech_indicator] 无新数据", flush=True)
+
+        return SyncResult(table="tech_indicator", mode=mode, rows=total_saved, status="success")

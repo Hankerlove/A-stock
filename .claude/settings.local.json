@@ -8,7 +8,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(python *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(conda activate *)",
+      "Bash(duckdb data/astock.duckdb -c \"DESCRIBE SELECT * FROM read_parquet\\('data/trade_cal/*.parquet', union_by_name=true\\);\")",
+      "Bash(duckdb data/astock.duckdb -c \"SELECT exchange, COUNT\\(*\\) as cnt, MIN\\(cal_date\\), MAX\\(cal_date\\) FROM read_parquet\\('data/trade_cal/*.parquet', union_by_name=true\\) GROUP BY exchange;\")",
+      "Bash(duckdb data/astock.duckdb -c \"SELECT typeof\\(is_open\\) as is_open_type FROM read_parquet\\('data/trade_cal/*.parquet', union_by_name=true\\) LIMIT 1;\")",
+      "Bash(astock data *)"
     ]
   }
 }

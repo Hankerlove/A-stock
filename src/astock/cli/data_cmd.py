@@ -28,9 +28,9 @@ def sync(
     mgr = _get_sync_manager()
 
     if table:
-        if table not in ["stock_basic", "trade_cal", "daily", "adj_factor", "daily_basic", "suspend_d"]:
+        if table not in ["stock_basic", "trade_cal", "daily", "adj_factor", "daily_basic", "suspend_d", "tech_indicator"]:
             typer.echo(f"无效表名: {table}")
-            typer.echo("有效表名: stock_basic, trade_cal, daily, adj_factor, daily_basic, suspend_d")
+            typer.echo("有效表名: stock_basic, trade_cal, daily, adj_factor, daily_basic, suspend_d, tech_indicator")
             raise typer.Exit(1)
         result = mgr.sync_table(table, mode=mode)
         _print_result(result)
@@ -62,11 +62,12 @@ def status():
     cfg = Config.from_yaml("config.yaml")
     store = DataStore(db_path=cfg.storage.db_path, data_dir=cfg.storage.data_dir)
 
-    tables = ["stock_basic", "trade_cal", "daily", "adj_factor", "daily_basic", "suspend_d"]
+    tables = ["stock_basic", "trade_cal", "daily", "adj_factor", "daily_basic", "suspend_d", "tech_indicator"]
     date_cols = {
         "stock_basic": None, "trade_cal": "cal_date",
         "daily": "trade_date", "adj_factor": "trade_date",
         "daily_basic": "trade_date", "suspend_d": "trade_date",
+        "tech_indicator": "trade_date",
     }
 
     typer.echo(f"{'表名':<16} {'行数':>10} {'最新日期':<12} {'状态'}")
