@@ -1,5 +1,5 @@
 tushare:
-  token: ""
+    token: "064d95c25e6f293b5cb10712eedeefb7fcb9d7b186062fa271dd498f"
 
 storage:
   data_dir: "data/"

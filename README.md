@@ -48,6 +48,7 @@ astock config show
 | adj_factor | 复权因子 | Done |
 | daily_basic | 每日指标（PE/PB等） | Done |
 | suspend_d | 停复牌记录 | Done |
+| tech_indicator | 技术指标（前复权 MACD/KDJ/RSI/MA/布林带/ATR） | Done |
 
 ## 项目结构
 
@@ -62,6 +63,7 @@ A_stock/
 │   │   ├── source/          # Tushare API 封装
 │   │   ├── sync/            # 同步策略（全量/增量+级联）
 │   │   └── store/           # DuckDB + Parquet 存储
+│   │   └── indicator/       # 技术指标计算（前复权）
 │   ├── strategy/            # 选股策略（未来）
 │   ├── backtest/            # 回测引擎（未来）
 │   └── cli/                 # CLI 命令入口
