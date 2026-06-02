@@ -47,6 +47,45 @@ class SyncManager:
         self.client = client
         self.store = store
         self.config = config
+        self._safe_today_cache: str | None = None
+
+    def _get_safe_today(self) -> str:
+        """获取本次同步的安全截止日期。
+
+        通过探测 Tushare daily 接口，找到最近一个有日线数据的交易日。
+        确保所有表同步到同一日期，避免 trade_cal/suspend_d 超前 daily 导致不一致。
+        结果会缓存，同一 SyncManager 实例多次调用只探测一次。
+        """
+        if self._safe_today_cache is not None:
+            return self._safe_today_cache
+
+        today = datetime.now().strftime("%Y%m%d")
+        if not self.store.table_exists("trade_cal"):
+            self._safe_today_cache = today
+            return today
+
+        trade_cal = self.store.load("trade_cal")
+        recent = trade_cal[
+            (trade_cal["cal_date"] <= today) &
+            (trade_cal["is_open"].astype(str) == "1")
+        ]["cal_date"].drop_duplicates().sort_values(ascending=False).head(3).tolist()
+
+        for date in recent:
+            try:
+                # 用一只流动性好的股票探测该日期是否有日线数据
+                df = self.client.fetch_daily(ts_code="000001.SZ", trade_date=date)
+                if not df.empty:
+                    self._safe_today_cache = date
+                    print(f"  [sync] 安全截止日期: {date} (日线数据可用)", flush=True)
+                    return date
+            except Exception:
+                continue
+
+        # 如果所有探测日期都没有数据（极端情况），取最近的日历日
+        fallback = recent[-1] if recent else today
+        self._safe_today_cache = fallback
+        print(f"  [sync] 安全截止日期: {fallback} (未探测到日线数据，使用最晚日历日)", flush=True)
+        return fallback
 
     def sync_table(self, table: str, mode: Literal["full", "inc"] = "inc") -> SyncResult:
         """Sync a single table, cascading to dependencies first."""
@@ -85,16 +124,16 @@ class SyncManager:
     def _get_trade_days_since(self, latest_date: str | None) -> list[str]:
         if not self.store.table_exists("trade_cal"):
             return []
-        today = datetime.now().strftime("%Y%m%d")
+        end_date = self._get_safe_today()
         start = "19900101" if latest_date is None else (
             datetime.strptime(latest_date, "%Y%m%d") + timedelta(days=1)
         ).strftime("%Y%m%d")
-        if start > today:
+        if start > end_date:
             return []
         trade_cal = self.store.load("trade_cal")
         trade_days = trade_cal[
             (trade_cal["cal_date"] >= start) &
-            (trade_cal["cal_date"] <= today) &
+            (trade_cal["cal_date"] <= end_date) &
             (trade_cal["is_open"].astype(str) == "1")
         ]["cal_date"].sort_values().tolist()
         return trade_days
@@ -132,9 +171,9 @@ class SyncManager:
     def _sync_trade_cal(self, mode: str) -> SyncResult:
         if mode == "full" or not self.store.table_exists("trade_cal"):
             print("  [trade_cal] 全量拉取 SSE + SZSE ...", flush=True)
-            today = datetime.now().strftime("%Y%m%d")
-            df_sse = self.client.fetch_trade_cal(exchange="SSE", start_date="19900101", end_date=today)
-            df_szse = self.client.fetch_trade_cal(exchange="SZSE", start_date="19900101", end_date=today)
+            end_date = self._get_safe_today()
+            df_sse = self.client.fetch_trade_cal(exchange="SSE", start_date="19900101", end_date=end_date)
+            df_szse = self.client.fetch_trade_cal(exchange="SZSE", start_date="19900101", end_date=end_date)
             df = pd.concat([df_sse, df_szse]).drop_duplicates()
             self.store.save("trade_cal", df, mode="replace")
             print(f"  [trade_cal] 完成，{len(df)} 条记录", flush=True)
@@ -144,11 +183,11 @@ class SyncManager:
             if latest is None:
                 return self._sync_trade_cal("full")
             start = (datetime.strptime(latest, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
-            today = datetime.now().strftime("%Y%m%d")
-            if start > today:
+            end_date = self._get_safe_today()
+            if start > end_date:
                 return SyncResult(table="trade_cal", mode="inc", rows=0, status="success")
-            df_sse = self.client.fetch_trade_cal(exchange="SSE", start_date=start, end_date=today)
-            df_szse = self.client.fetch_trade_cal(exchange="SZSE", start_date=start, end_date=today)
+            df_sse = self.client.fetch_trade_cal(exchange="SSE", start_date=start, end_date=end_date)
+            df_szse = self.client.fetch_trade_cal(exchange="SZSE", start_date=start, end_date=end_date)
             df = pd.concat([df_sse, df_szse]).drop_duplicates()
             self.store.save("trade_cal", df, mode="append")
             return SyncResult(table="trade_cal", mode="inc", rows=len(df), status="success")
