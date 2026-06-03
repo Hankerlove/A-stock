@@ -304,6 +304,27 @@ class SyncManager:
 
         return SyncResult(table="suspend_d", mode=mode, rows=total_rows, status="success")
 
+    def _load_table_for_stocks(self, table: str, ts_codes: list[str], date_start: str, date_end: str) -> pd.DataFrame:
+        """Load parquet data for specific stocks within a date range via DuckDB.
+
+        Avoids loading the entire table into memory. Returns empty DataFrame
+        when the table has no parquet files or the stock list is empty.
+        """
+        if not ts_codes:
+            return pd.DataFrame()
+        table_dir = self.store._table_dir(table)
+        if not any(table_dir.glob("*.parquet")):
+            return pd.DataFrame()
+        parquet_glob = str(table_dir / "*.parquet")
+        codes_fmt = ", ".join(f"'{c}'" for c in ts_codes)
+        query = (
+            f"SELECT * FROM read_parquet('{parquet_glob}', union_by_name=true) "
+            f"WHERE ts_code IN ({codes_fmt}) "
+            f"AND trade_date >= '{date_start}' "
+            f"AND trade_date <= '{date_end}'"
+        )
+        return self.store._conn.execute(query).df()
+
     def _sync_tech_indicator(self, mode: str) -> SyncResult:
         is_full = mode == "full" or not self.store.table_exists("tech_indicator")
         latest = None if is_full else self.store.get_latest_date("tech_indicator", "trade_date")
@@ -313,69 +334,109 @@ class SyncManager:
             return SyncResult(table="tech_indicator", mode=mode, rows=0, status="success")
 
         if is_full:
-            print("  [tech_indicator] 全量模式，加载 daily + adj_factor ...", flush=True)
+            print("  [tech_indicator] 全量模式，按 chunk 分批处理...", flush=True)
         else:
             print(f"  [tech_indicator] 增量模式，{len(trade_days)} 个新交易日", flush=True)
 
-        daily = self.store.load("daily")
-        adj = self.store.load("adj_factor")
-
-        # 清理历史遗留的 index 列（db.py 已修复 index=False，此处防御性保留）
-        for c in ["__index_level_0__"]:
-            if c in daily.columns:
-                daily = daily.drop(columns=[c])
-            if c in adj.columns:
-                adj = adj.drop(columns=[c])
-
-        merged = pd.merge(daily, adj, on=["ts_code", "trade_date"], how="inner")
-        merged = merged.sort_values(["ts_code", "trade_date"])
-
-        results = []
+        # Get active stock codes
         stocks = self.store.load("stock_basic")
-        active_codes = set(stocks[stocks["list_status"] == "L"]["ts_code"].tolist())
-        groups = merged.groupby("ts_code")
-        total_stocks = groups.ngroups
-        processed = 0
+        active_codes = stocks[stocks["list_status"] == "L"]["ts_code"].tolist()
+        if not active_codes:
+            print("  [tech_indicator] 无有效股票", flush=True)
+            return SyncResult(table="tech_indicator", mode=mode, rows=0, status="success")
+
+        # Date bounds: for inc mode, load 120 calendar days before first new
+        # trade day to ensure enough history for MA60 and other indicators
+        date_end = datetime.now().strftime("%Y%m%d")
+        if is_full:
+            date_start = "19900101"
+        else:
+            date_start = (
+                datetime.strptime(trade_days[0], "%Y%m%d") - timedelta(days=120)
+            ).strftime("%Y%m%d")
+
         total_saved = 0
+        processed = 0
+        total_stocks = len(active_codes)
+        chunk_size = 200
+        is_first_chunk = True
 
-        for ts_code, group in groups:
-            if ts_code not in active_codes:
+        for chunk_start in range(0, len(active_codes), chunk_size):
+            chunk_codes = active_codes[chunk_start:chunk_start + chunk_size]
+
+            # Load per-chunk via DuckDB instead of loading everything upfront
+            daily = self._load_table_for_stocks("daily", chunk_codes, date_start, date_end)
+            adj = self._load_table_for_stocks("adj_factor", chunk_codes, date_start, date_end)
+            if daily.empty or adj.empty:
+                processed += len(chunk_codes)
                 continue
-            group = group.sort_values("trade_date")
-            latest_adj = group["adj_factor"].iloc[-1]
-            if latest_adj == 0:
+
+            # Clean legacy index column from parquet load
+            for c in ["__index_level_0__"]:
+                if c in daily.columns:
+                    daily = daily.drop(columns=[c])
+                if c in adj.columns:
+                    adj = adj.drop(columns=[c])
+
+            merged = pd.merge(daily, adj, on=["ts_code", "trade_date"], how="inner")
+            if merged.empty:
+                processed += len(chunk_codes)
                 continue
+            merged = merged.sort_values(["ts_code", "trade_date"])
 
-            group = group.copy()
-            ratio = group["adj_factor"].to_numpy(dtype=float) / float(latest_adj)
-            group["adj_open"] = group["open"].to_numpy(dtype=float) * ratio
-            group["adj_high"] = group["high"].to_numpy(dtype=float) * ratio
-            group["adj_low"] = group["low"].to_numpy(dtype=float) * ratio
-            group["adj_close"] = group["close"].to_numpy(dtype=float) * ratio
+            # Process each stock in this chunk
+            chunk_results = []
+            chunk_stocks_in_data = 0
+            for ts_code, group in merged.groupby("ts_code"):
+                group = group.sort_values("trade_date")
+                adj_vals = group["adj_factor"]
+                if len(adj_vals) == 0 or adj_vals.iloc[-1] == 0:
+                    continue
 
-            indicators = compute_indicators(group)
-            if not is_full and trade_days:
-                indicators = indicators[indicators["trade_date"].isin(trade_days)]
+                group = group.copy()
+                ratio = group["adj_factor"].to_numpy(dtype=float) / float(adj_vals.iloc[-1])
+                group["adj_open"] = group["open"].to_numpy(dtype=float) * ratio
+                group["adj_high"] = group["high"].to_numpy(dtype=float) * ratio
+                group["adj_low"] = group["low"].to_numpy(dtype=float) * ratio
+                group["adj_close"] = group["close"].to_numpy(dtype=float) * ratio
 
-            if not indicators.empty and not indicators.iloc[:, 2:].isna().all(axis=1).all():
-                results.append(indicators)
-                total_saved += len(indicators)
+                indicators = compute_indicators(group)
+                if not is_full and trade_days:
+                    indicators = indicators[indicators["trade_date"].isin(trade_days)]
 
-            processed += 1
-            if processed % 200 == 0:
-                pct = processed * 100 // total_stocks
-                print(f"  [tech_indicator] {processed}/{total_stocks} ({pct}%)  "
-                      f"累计={total_saved:,}行", flush=True)
+                if not indicators.empty and not indicators.iloc[:, 2:].isna().all(axis=1).all():
+                    chunk_results.append(indicators)
+                    total_saved += len(indicators)
 
-        if results:
-            final = pd.concat(results, ignore_index=True)
-            save_mode = "replace" if is_full else "append"
-            self.store.save("tech_indicator", final, mode=save_mode)
+                chunk_stocks_in_data += 1
+
+            processed += len(chunk_codes)
+
+            # Save chunk results immediately and free memory
+            if chunk_results:
+                chunk_df = pd.concat(chunk_results, ignore_index=True)
+                if is_full and is_first_chunk:
+                    self.store.save("tech_indicator", chunk_df, mode="replace")
+                    is_first_chunk = False
+                else:
+                    self.store.save("tech_indicator", chunk_df, mode="append")
+
+            # Explicitly free per-chunk DataFrames
+            del daily, adj, merged, chunk_results
+            if 'chunk_df' in locals():
+                del chunk_df
+
+            # Progress: report at chunk granularity
+            pct = processed * 100 // total_stocks
+            print(f"  [tech_indicator] {processed}/{total_stocks} ({pct}%)  "
+                  f"累计={total_saved:,}行", flush=True)
+
+        if total_saved > 0:
             if not is_full:
                 removed = self.store.deduplicate("tech_indicator", ["ts_code", "trade_date"])
                 if removed > 0:
                     print(f"  [tech_indicator] 去重删除 {removed} 行", flush=True)
-            print(f"  [tech_indicator] 完成，{total_saved:,} 行 ({save_mode})", flush=True)
+            print(f"  [tech_indicator] 完成，{total_saved:,} 行", flush=True)
         else:
             print("  [tech_indicator] 无新数据", flush=True)
 
