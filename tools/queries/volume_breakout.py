@@ -1,15 +1,15 @@
 """查询今日较前一交易日成交量放大 2 倍及以上的股票。
 
-用法: python tests/queries/volume_breakout.py [倍数阈值] [输出行数]
-示例: python tests/queries/volume_breakout.py          # 默认 2 倍，全部输出
-      python tests/queries/volume_breakout.py 3.0 20   # 3 倍，最多 20 条
+用法: python tools/queries/volume_breakout.py [倍数阈值] [输出行数]
+示例: python tools/queries/volume_breakout.py          # 默认 2 倍，全部输出
+      python tools/queries/volume_breakout.py 3.0 20   # 3 倍，最多 20 条
 """
 import sys
 from pathlib import Path
 
 import duckdb
 
-# 项目根目录 (从 tests/queries/ 往上两级)
+# 项目根目录 (从 tools/queries/ 往上两级)
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / "data"
 
