@@ -49,28 +49,19 @@ class SyncManager:
         self.config = config
         self._safe_today_cache: str | None = None
 
-    def _get_safe_today(self) -> str:
+    def _get_safe_today(self, max_probe_days: int = 5) -> str:
         """获取本次同步的安全截止日期。
 
-        通过探测 Tushare daily 接口，找到最近一个有日线数据的交易日。
-        确保所有表同步到同一日期，避免 trade_cal/suspend_d 超前 daily 导致不一致。
+        从今天往回探测 Tushare daily 接口，找到最近一个有日线数据的日期。
+        不依赖本地 trade_cal（可能过期），直接从 API 层探测，避免鸡生蛋问题。
         结果会缓存，同一 SyncManager 实例多次调用只探测一次。
         """
         if self._safe_today_cache is not None:
             return self._safe_today_cache
 
-        today = datetime.now().strftime("%Y%m%d")
-        if not self.store.table_exists("trade_cal"):
-            self._safe_today_cache = today
-            return today
-
-        trade_cal = self.store.load("trade_cal")
-        recent = trade_cal[
-            (trade_cal["cal_date"] <= today) &
-            (trade_cal["is_open"].astype(str) == "1")
-        ]["cal_date"].drop_duplicates().sort_values(ascending=False).head(3).tolist()
-
-        for date in recent:
+        today = datetime.now()
+        for offset in range(max_probe_days):
+            date = (today - timedelta(days=offset)).strftime("%Y%m%d")
             try:
                 # 用一只流动性好的股票探测该日期是否有日线数据
                 df = self.client.fetch_daily(ts_code="000001.SZ", trade_date=date)
@@ -81,10 +72,10 @@ class SyncManager:
             except Exception:
                 continue
 
-        # 如果所有探测日期都没有数据（极端情况），取最近的日历日
-        fallback = recent[-1] if recent else today
+        # 探测范围内都没有数据（如长假后），返回今天
+        fallback = today.strftime("%Y%m%d")
         self._safe_today_cache = fallback
-        print(f"  [sync] 安全截止日期: {fallback} (未探测到日线数据，使用最晚日历日)", flush=True)
+        print(f"  [sync] 安全截止日期: {fallback} (未探测到日线数据，使用今天)", flush=True)
         return fallback
 
     def sync_table(self, table: str, mode: Literal["full", "inc"] = "inc") -> SyncResult:
@@ -135,7 +126,7 @@ class SyncManager:
             (trade_cal["cal_date"] >= start) &
             (trade_cal["cal_date"] <= end_date) &
             (trade_cal["is_open"].astype(str) == "1")
-        ]["cal_date"].sort_values().tolist()
+        ]["cal_date"].drop_duplicates().sort_values().tolist()
         return trade_days
 
     def _get_active_stocks(self, trade_date: str) -> list[str]:
@@ -329,8 +320,8 @@ class SyncManager:
         daily = self.store.load("daily")
         adj = self.store.load("adj_factor")
 
-        # 清理遗留列
-        for c in ["__index_level_0__", "__index_level_0__"]:
+        # 清理历史遗留的 index 列（db.py 已修复 index=False，此处防御性保留）
+        for c in ["__index_level_0__"]:
             if c in daily.columns:
                 daily = daily.drop(columns=[c])
             if c in adj.columns:
