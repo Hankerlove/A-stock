@@ -26,8 +26,11 @@ logs/
 .DS_Store
 Thumbs.db
 
-#docs
-docs/
+# # Docs
+# docs/*
+# !docs/superpowers/
+# !docs/superpowers/**
+# docs/**/.DS_Store
 
 # config
 config.yaml
