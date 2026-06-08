@@ -268,6 +268,25 @@ def test_volume_price_breakout_selects_price_and_volume_breakout():
     assert signal.scores.iloc[0]["volume_ratio"] >= 2.0
 
 
+def test_volume_price_breakout_accepts_pre_adjusted_daily_without_adj_factor():
+    market = _breakout_market_frame()
+    market["daily"] = adjusted_prices(market["daily"], market["adj_factor"])
+    market["adj_factor"] = pd.DataFrame()
+    strategy = get_strategy(
+        "volume-price-breakout",
+        top_n=1,
+        breakout_window=3,
+        volume_window=3,
+        volume_multiplier=2.0,
+        min_pct_chg=1.0,
+        min_amount=1000.0,
+    )
+
+    signal = strategy.generate(market, "20240108")
+
+    assert signal.weights.to_dict() == {"000001.SZ": 1.0}
+
+
 def test_strategy_returns_empty_signal_when_no_trade_date_data():
     strategy = get_strategy("dividend-low-vol", top_n=3)
 

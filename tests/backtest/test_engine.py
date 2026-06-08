@@ -16,17 +16,24 @@ class StaticStrategy:
         return StrategySignal(trade_date=trade_date, weights=weights, scores=pd.DataFrame())
 
 
-def _market(pct_chg: float = 0.0, suspend_trade_date: str | None = None) -> dict[str, pd.DataFrame]:
+def _market(
+    pct_chg: float = 0.0,
+    suspend_trade_date: str | None = None,
+    open_on_trade: float = 10.0,
+    close_on_trade: float = 10.0,
+) -> dict[str, pd.DataFrame]:
     dates = ["20240102", "20240103", "20240104", "20240105"]
     daily_rows = []
     for date in dates:
+        open_price = open_on_trade if date == "20240103" else 10.0
+        close_price = close_on_trade if date == "20240103" else 10.0
         daily_rows.append({
             "ts_code": "000001.SZ",
             "trade_date": date,
-            "open": 10.0,
-            "high": 10.5,
-            "low": 9.8,
-            "close": 10.0,
+            "open": open_price,
+            "high": max(open_price, close_price) + 0.5,
+            "low": min(open_price, close_price) - 0.2,
+            "close": close_price,
             "pre_close": 10.0,
             "pct_chg": pct_chg if date == "20240103" else 0.0,
             "vol": 10000.0,
@@ -119,10 +126,34 @@ def test_limit_up_blocks_buy_order_when_enabled():
     strategy = StaticStrategy({"20240102": {"000001.SZ": 1.0}})
     engine = BacktestEngine(_config())
 
-    result = engine.run(strategy, _market(pct_chg=10.0))
+    result = engine.run(strategy, _market(pct_chg=10.0, open_on_trade=11.0, close_on_trade=11.0))
 
     assert result.trades.empty
     assert result.equity_curve.iloc[-1]["cash"] == 10000.0
+
+
+def test_close_limit_up_does_not_block_open_buy_when_open_is_tradeable():
+    strategy = StaticStrategy({"20240102": {"000001.SZ": 1.0}})
+    engine = BacktestEngine(_config())
+
+    result = engine.run(strategy, _market(pct_chg=10.0, open_on_trade=10.0, close_on_trade=11.0))
+
+    assert result.trades.iloc[0]["side"] == "buy"
+
+
+def test_missing_daily_price_carries_last_close_for_valuation():
+    strategy = StaticStrategy({"20240102": {"000001.SZ": 1.0}, "20240103": {"000001.SZ": 1.0}})
+    market = _market()
+    market["daily"] = market["daily"][market["daily"]["trade_date"] != "20240104"].reset_index(drop=True)
+    market["adj_factor"] = market["adj_factor"][
+        market["adj_factor"]["trade_date"] != "20240104"
+    ].reset_index(drop=True)
+    engine = BacktestEngine(_config())
+
+    result = engine.run(strategy, market)
+
+    missing_day = result.equity_curve[result.equity_curve["trade_date"] == "20240104"].iloc[0]
+    assert missing_day["equity"] == 10000.0
 
 
 def test_strategy_empty_signal_keeps_cash():

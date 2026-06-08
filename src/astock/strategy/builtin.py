@@ -6,6 +6,7 @@ from astock.strategy.base import MarketData, StrategySignal, empty_signal
 from astock.strategy.factors import (
     active_universe,
     adjusted_prices,
+    has_adjusted_prices,
     latest_on_or_before,
     minmax_scale,
     percentile_rank,
@@ -197,7 +198,7 @@ def _base_frame(
     daily_basic = market.get("daily_basic", pd.DataFrame())
     adj_factor = market.get("adj_factor", pd.DataFrame())
     stock_basic = market.get("stock_basic", pd.DataFrame())
-    if daily.empty or daily_basic.empty or adj_factor.empty:
+    if daily.empty or daily_basic.empty or (adj_factor.empty and not has_adjusted_prices(daily)):
         return pd.DataFrame()
 
     daily_adj = adjusted_prices(daily, adj_factor)
@@ -226,7 +227,7 @@ def _price_base_frame(
     daily = market.get("daily", pd.DataFrame())
     adj_factor = market.get("adj_factor", pd.DataFrame())
     stock_basic = market.get("stock_basic", pd.DataFrame())
-    if daily.empty or adj_factor.empty:
+    if daily.empty or (adj_factor.empty and not has_adjusted_prices(daily)):
         return pd.DataFrame(), pd.DataFrame()
 
     daily_adj = adjusted_prices(daily, adj_factor)

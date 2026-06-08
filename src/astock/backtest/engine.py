@@ -27,14 +27,16 @@ class BacktestEngine:
             raise ValueError("回测区间内没有交易日")
 
         daily = self._daily_with_adjusted_prices(market)
-        price_rows = {
-            (row.ts_code, row.trade_date): row
-            for row in daily.itertuples(index=False)
-            if self.config.start_date <= row.trade_date <= self.config.end_date
-        }
+        price_rows = {}
+        price_rows_by_date: dict[str, list[object]] = {}
+        for row in daily.itertuples(index=False):
+            if self.config.start_date <= row.trade_date <= self.config.end_date:
+                price_rows[(row.ts_code, row.trade_date)] = row
+                price_rows_by_date.setdefault(row.trade_date, []).append(row)
         rebalance_dates = set(self._rebalance_dates(trade_dates))
         cash = float(self.config.initial_cash)
         positions: dict[str, float] = {}
+        last_close_prices: dict[str, float] = {}
         scheduled: dict[str, tuple[str, pd.Series]] = {}
         equity_rows: list[dict[str, float | str]] = []
         trade_rows: list[dict[str, float | str]] = []
@@ -50,10 +52,16 @@ class BacktestEngine:
                     market=market,
                     cash=cash,
                     positions=positions,
+                    fallback_prices=last_close_prices,
                     trade_rows=trade_rows,
                 )
 
-            positions_value = self._positions_value(date, positions, price_rows, "adj_close")
+            for row in price_rows_by_date.get(date, []):
+                last_close_prices[row.ts_code] = float(row.adj_close)
+
+            positions_value = self._positions_value(
+                date, positions, price_rows, "adj_close", last_close_prices
+            )
             equity = cash + positions_value
             equity_rows.append({
                 "trade_date": date,
@@ -128,14 +136,17 @@ class BacktestEngine:
         market: Mapping[str, pd.DataFrame],
         cash: float,
         positions: dict[str, float],
+        fallback_prices: dict[str, float],
         trade_rows: list[dict[str, float | str]],
     ) -> float:
-        portfolio_value = cash + self._positions_value(trade_date, positions, price_rows, "adj_open")
-        current_values = {
-            code: shares * self._price(code, trade_date, price_rows, "adj_open")
-            for code, shares in positions.items()
-            if self._has_price(code, trade_date, price_rows)
-        }
+        portfolio_value = cash + self._positions_value(
+            trade_date, positions, price_rows, "adj_open", fallback_prices
+        )
+        current_values = {}
+        for code, shares in positions.items():
+            price = self._price_or_fallback(code, trade_date, price_rows, "adj_open", fallback_prices)
+            if price is not None:
+                current_values[code] = shares * price
         target_values = {
             code: float(weight) * portfolio_value
             for code, weight in target_weights.items()
@@ -271,7 +282,9 @@ class BacktestEngine:
         price_rows: dict[tuple[str, str], object],
     ) -> bool:
         row = price_rows[(code, trade_date)]
-        pct_chg = getattr(row, "pct_chg", None)
+        pct_chg = self._open_pct_chg(row)
+        if pct_chg is None:
+            pct_chg = getattr(row, "pct_chg", None)
         if pct_chg is None or pd.isna(pct_chg):
             return False
         threshold = 20.0 if code.startswith(("30", "68")) else 10.0
@@ -286,12 +299,28 @@ class BacktestEngine:
         positions: dict[str, float],
         price_rows: dict[tuple[str, str], object],
         price_col: str,
+        fallback_prices: dict[str, float] | None = None,
     ) -> float:
         value = 0.0
         for code, shares in positions.items():
-            if self._has_price(code, trade_date, price_rows):
-                value += shares * self._price(code, trade_date, price_rows, price_col)
+            price = self._price_or_fallback(code, trade_date, price_rows, price_col, fallback_prices)
+            if price is not None:
+                value += shares * price
         return float(value)
+
+    def _price_or_fallback(
+        self,
+        code: str,
+        trade_date: str,
+        price_rows: dict[tuple[str, str], object],
+        price_col: str,
+        fallback_prices: dict[str, float] | None = None,
+    ) -> float | None:
+        if self._has_price(code, trade_date, price_rows):
+            return self._price(code, trade_date, price_rows, price_col)
+        if fallback_prices and code in fallback_prices:
+            return float(fallback_prices[code])
+        return None
 
     def _price(
         self,
@@ -309,6 +338,16 @@ class BacktestEngine:
         price_rows: dict[tuple[str, str], object],
     ) -> bool:
         return (code, trade_date) in price_rows
+
+    def _open_pct_chg(self, row: object) -> float | None:
+        open_price = getattr(row, "open", None)
+        pre_close = getattr(row, "pre_close", None)
+        if open_price is None or pre_close is None or pd.isna(open_price) or pd.isna(pre_close):
+            return None
+        pre_close = float(pre_close)
+        if pre_close <= 0:
+            return None
+        return (float(open_price) / pre_close - 1.0) * 100.0
 
     def _round_lot(self, shares: float) -> int:
         return floor(max(shares, 0.0) / self.config.execution.lot_size) * self.config.execution.lot_size

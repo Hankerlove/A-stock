@@ -2,13 +2,22 @@ import numpy as np
 import pandas as pd
 
 
+ADJUSTED_PRICE_COLUMNS = {"adj_open", "adj_close"}
+
+
 def require_columns(df: pd.DataFrame, columns: list[str], table: str) -> None:
     missing = [col for col in columns if col not in df.columns]
     if missing:
         raise ValueError(f"{table} 缺少必要字段: {', '.join(missing)}")
 
 
+def has_adjusted_prices(daily: pd.DataFrame) -> bool:
+    return ADJUSTED_PRICE_COLUMNS.issubset(daily.columns)
+
+
 def adjusted_prices(daily: pd.DataFrame, adj_factor: pd.DataFrame) -> pd.DataFrame:
+    if has_adjusted_prices(daily):
+        return daily.copy()
     require_columns(
         daily,
         ["ts_code", "trade_date", "open", "high", "low", "close", "amount"],
