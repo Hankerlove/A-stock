@@ -12,6 +12,9 @@ pytest_cache/
 # Logs
 logs/
 
+# Generated charts
+charts/
+
 # Environment
 .env
 .conda/
