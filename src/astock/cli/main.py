@@ -1,5 +1,5 @@
 import typer
-from astock.cli import config_cmd, data_cmd, cal_cmd, strategy_cmd, backtest_cmd
+from astock.cli import config_cmd, data_cmd, cal_cmd, strategy_cmd, backtest_cmd, chart_cmd
 
 app = typer.Typer(
     name="astock",
@@ -12,6 +12,7 @@ app.add_typer(data_cmd.app, name="data")
 app.add_typer(cal_cmd.app, name="cal")
 app.add_typer(strategy_cmd.app, name="strategy")
 app.add_typer(backtest_cmd.app, name="backtest")
+app.add_typer(chart_cmd.app, name="chart")
 
 
 @app.callback()

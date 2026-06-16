@@ -31,6 +31,10 @@ astock data status
 # 查询股票列表
 astock data query stock_basic --limit 20
 
+# 生成交互式 K 线图（默认当前交易日前两年）
+astock chart kline 000001
+astock chart kline 平安银行 --start 20240101 --end 20240630 --output charts/pingan.html
+
 # 查看交易日历
 astock cal show 20240102
 
@@ -76,6 +80,36 @@ astock config show
 | daily_basic    | 每日指标（PE/PB等）                      | Done |
 | suspend_d      | 停复牌记录                             | Done |
 | tech_indicator | 技术指标（前复权 MACD/KDJ/RSI/MA/布林带/ATR） | Done |
+
+
+## 可视化图表
+
+`astock chart kline <股票代码或名称>` 会从本地 `stock_basic`、`trade_cal` 和 `daily` 表读取数据，生成自包含的交互式 HTML K 线图。未传 `--start/--end` 时，默认使用本地交易日历中不晚于今天的最近开市日作为结束日期，并向前回看两年；同时指定 `--start` 和 `--end` 时完全按输入区间读取。图表支持左右拖拽、滚轮缩放、悬停查看单日开高低收和成交量，并在图中用箭头标注当前可视区间最高价和最低价。
+
+示例：
+
+```bash
+# 默认读取当前交易日前两年，会通过 stock_basic 解析 6 位股票代码为 ts_code
+astock chart kline 000001
+
+# 使用股票名称并指定日期范围
+astock chart kline 平安银行 --start 20240101 --end 20240630
+
+# 指定输出文件并生成后打开浏览器
+astock chart kline 000001.SZ --output charts/pingan.html --open
+```
+
+常用参数：
+
+| CLI 参数        | 默认值                    | 说明                              |
+| ------------- | ---------------------- | ------------------------------- |
+| `<股票代码或名称>` | 必填                     | 支持 `000001.SZ`、`000001` 或股票名称。 |
+| `--start`     | 当前交易日前两年               | 开始日期，格式 `YYYYMMDD`。            |
+| `--end`       | 当前交易日                  | 结束日期，格式 `YYYYMMDD`。            |
+| `--limit`     | `500`                  | 最多绘制最近 N 条 K 线；`<=0` 表示不限制。  |
+| `--output`    | `charts/kline_<代码>_<区间>.html` | 输出 HTML 文件路径；`charts/` 默认不纳入 Git。 |
+| `--config`    | `config.yaml`          | 配置文件路径。                         |
+| `--open`      | `False`                | 生成后使用系统默认浏览器打开。               |
 
 
 ## 策略与回测
