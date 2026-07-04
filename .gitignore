@@ -37,7 +37,10 @@ Thumbs.db
 
 # config
 config.yaml
+
 .cjadk/
 log/app.log
 .claude/
 .codex/
+
+docs/
