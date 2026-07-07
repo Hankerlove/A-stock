@@ -47,8 +47,8 @@ astock strategy explain momentum-reversal
 astock strategy explain value-low-vol
 astock strategy explain volume-price-breakout
 
-# 生成某日策略目标权重
-astock strategy signals --strategy dividend-low-vol --date 20240131 --top-n 20 --lookback-days 60
+# 生成某日策略目标权重（输出包含代码、名称、权重）
+astock strategy signals --strategy dividend-low-vol --date 20240131
 astock strategy signals --strategy momentum-reversal --date 20240131 --momentum-window 60 --reversal-window 5
 astock strategy signals --strategy volume-price-breakout --date 20240131 --breakout-window 20 --volume-multiplier 2.0
 
@@ -57,7 +57,6 @@ astock backtest run \
   --strategy dividend-low-vol \
   --start 20200101 \
   --end 20231231 \
-  --top-n 20 \
   --initial-cash 1000000 \
   --commission-rate 0.0003 \
   --stamp-duty-rate 0.0005 \
@@ -126,7 +125,7 @@ astock chart kline 000001.SZ --output charts/pingan.html --open
 
 
 `astock strategy explain <策略名>` 会输出每个策略参数的默认值和中文解释。
-策略参数也可以在 `astock strategy signals` 和 `astock backtest run` 中通过同名 CLI 选项传入。CLI 会根据当前 `--strategy` 自动筛选该策略支持的参数；没有显式传入的可选权重参数使用策略类中的默认值。
+策略参数也可以在 `astock strategy signals` 和 `astock backtest run` 中通过同名 CLI 选项传入。CLI 会根据当前 `--strategy` 自动筛选该策略支持的参数；没有显式传入的策略参数使用策略类中的默认值。
 
 ### 通用策略参数
 
@@ -135,8 +134,8 @@ astock chart kline 000001.SZ --output charts/pingan.html --open
 
 | CLI 参数                   | 中文名称    | 默认值   | 说明                    |
 | ------------------------ | ------- | ----- | --------------------- |
-| `--top-n`                | 持仓股票数量  | `20`  | 按综合得分从高到低选取前 N 只股票。   |
-| `--min-amount`           | 成交额过滤下限 | `0.0` | 低于该成交额的股票不参与打分。       |
+| `--top-n`                | 持仓股票数量  | 策略默认值 | 按综合得分从高到低选取前 N 只股票。   |
+| `--min-amount`           | 成交额过滤下限 | 策略默认值 | 低于该成交额的股票不参与打分。       |
 | `--max-weight-per-stock` | 单票权重上限  | 空     | 限制单只股票最大目标权重；为空表示不限制。 |
 
 
@@ -147,12 +146,12 @@ astock chart kline 000001.SZ --output charts/pingan.html --open
 
 | CLI 参数                   | 中文名称     | 默认值   | 说明              |
 | ------------------------ | -------- | ----- | --------------- |
-| `--top-n`                | 持仓股票数量   | `20`  | 按综合得分从高到低选取。    |
-| `--lookback-days`        | 波动率回看窗口  | `60`  | 使用前复权收盘价计算收益波动。 |
-| `--min-amount`           | 成交额过滤下限  | `0.0` | 过滤流动性不足的股票。     |
-| `--dividend-weight`      | 股息率因子权重  | `0.6` | 越高越偏好高股息股票。     |
-| `--volatility-weight`    | 波动率惩罚权重  | `0.4` | 越高越严格惩罚高波动股票。   |
-| `--value-weight`         | 估值辅助因子权重 | `0.0` | 使用 PB 低估值排名。    |
+| `--top-n`                | 持仓股票数量   | `5`       | 按综合得分从高到低选取。    |
+| `--lookback-days`        | 波动率回看窗口  | `120`     | 使用前复权收盘价计算收益波动。 |
+| `--min-amount`           | 成交额过滤下限  | `50000.0` | 过滤流动性不足的股票。     |
+| `--dividend-weight`      | 股息率因子权重  | `0.6`     | 越高越偏好高股息股票。     |
+| `--volatility-weight`    | 波动率惩罚权重  | `0.3`     | 越高越严格惩罚高波动股票。   |
+| `--value-weight`         | 估值辅助因子权重 | `0.1`     | 使用 PB 低估值排名。    |
 | `--max-weight-per-stock` | 单票权重上限   | 空     | 为空表示不限制。        |
 
 
@@ -162,11 +161,7 @@ astock chart kline 000001.SZ --output charts/pingan.html --open
 astock backtest run \
   --strategy dividend-low-vol \
   --start 20200101 \
-  --end 20231231 \
-  --top-n 20 \
-  --lookback-days 60 \
-  --dividend-weight 0.6 \
-  --volatility-weight 0.4
+  --end 20231231
 ```
 
 ### 价值低波策略参数

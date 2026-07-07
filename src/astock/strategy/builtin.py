@@ -19,12 +19,12 @@ from astock.strategy.registry import register_strategy
 
 @dataclass(frozen=True)
 class DividendLowVolStrategy:
-    top_n: int = field(default=20, metadata={"help": "持仓股票数量，按综合得分从高到低选取。"})
-    lookback_days: int = field(default=60, metadata={"help": "波动率回看窗口，使用前复权收盘价计算收益波动。"})
-    min_amount: float = field(default=0.0, metadata={"help": "成交额过滤下限，低于该成交额的股票不参与打分。"})
+    top_n: int = field(default=5, metadata={"help": "持仓股票数量，按综合得分从高到低选取。"})
+    lookback_days: int = field(default=120, metadata={"help": "波动率回看窗口，使用前复权收盘价计算收益波动。"})
+    min_amount: float = field(default=50_000.0, metadata={"help": "成交额过滤下限，低于该成交额的股票不参与打分。"})
     dividend_weight: float = field(default=0.6, metadata={"help": "股息率因子权重，越高越偏好高股息股票。"})
-    volatility_weight: float = field(default=0.4, metadata={"help": "波动率惩罚权重，越高越严格惩罚高波动股票。"})
-    value_weight: float = field(default=0.0, metadata={"help": "估值辅助因子权重，使用 PB 低估值排名。"})
+    volatility_weight: float = field(default=0.3, metadata={"help": "波动率惩罚权重，越高越严格惩罚高波动股票。"})
+    value_weight: float = field(default=0.1, metadata={"help": "估值辅助因子权重，使用 PB 低估值排名。"})
     max_weight_per_stock: float | None = field(default=None, metadata={"help": "单票最大权重上限；为空表示不限制。"})
 
     name: str = "dividend-low-vol"
