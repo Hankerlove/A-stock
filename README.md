@@ -12,7 +12,8 @@ conda activate astock
 # 2. 安装 astock 包
 pip install -e .
 
-# 3. 设置 Tushare Token（需在 https://tushare.pro 注册获取）
+# 3. 创建本地配置并设置 Tushare Token（需在 https://tushare.pro 注册获取）
+cp config_example.config config.yaml
 export TUSHARE_TOKEN="your_token_here"
 
 # 4. 验证

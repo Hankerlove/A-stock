@@ -35,8 +35,9 @@ Thumbs.db
 # !docs/superpowers/**
 # docs/**/.DS_Store
 
-# config
+# Local config with secrets
 config.yaml
+!config_example.config
 
 .cjadk/
 log/app.log
