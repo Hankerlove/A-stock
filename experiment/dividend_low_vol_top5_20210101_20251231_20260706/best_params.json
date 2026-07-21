@@ -1,0 +1,42 @@
+{
+  "selected_run_id": 105,
+  "selection_rule": [
+    "status == 'ok'",
+    "trade_count > 0",
+    "sharpe desc",
+    "annual_return desc",
+    "max_drawdown desc",
+    "turnover asc",
+    "run_id asc"
+  ],
+  "strategy": "dividend-low-vol",
+  "backtest": {
+    "start_date": "20210101",
+    "end_date": "20251231",
+    "initial_cash": 1000000.0,
+    "rebalance_frequency": "monthly"
+  },
+  "params": {
+    "top_n": 5,
+    "lookback_days": 120,
+    "min_amount": 50000.0,
+    "dividend_weight": 0.6,
+    "volatility_weight": 0.3,
+    "value_weight": 0.1,
+    "max_weight_per_stock": null
+  },
+  "metrics": {
+    "total_return": 2.0630922853017757,
+    "annual_return": 0.26231068894607534,
+    "max_drawdown": -0.10055243581426454,
+    "sharpe": 1.7473948639309884,
+    "turnover": 49.63350500991256,
+    "trade_count": 397
+  },
+  "data_coverage": {
+    "daily_latest": "20260703",
+    "trade_cal_latest": "20260703",
+    "daily_basic_latest": "20260703"
+  },
+  "overfit_note": "Best parameters are selected only on 2021-2025 backtest results."
+}

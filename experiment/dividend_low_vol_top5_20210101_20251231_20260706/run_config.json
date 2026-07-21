@@ -1,0 +1,100 @@
+{
+  "strategy": "dividend-low-vol",
+  "start_date": "20210101",
+  "end_date": "20251231",
+  "top_n": 5,
+  "initial_cash": 1000000.0,
+  "rebalance_frequency": "monthly",
+  "execution": {
+    "commission_rate": 0.0003,
+    "stamp_duty_rate": 0.0005,
+    "slippage_rate": 0.0005,
+    "min_commission": 5.0,
+    "lot_size": 100,
+    "enforce_suspend": true,
+    "enforce_limit": true
+  },
+  "grid": {
+    "lookback_days": [
+      40,
+      60,
+      90,
+      120,
+      180
+    ],
+    "min_amount": [
+      0.0,
+      10000.0,
+      50000.0
+    ],
+    "weight_combos": [
+      {
+        "dividend_weight": 0.5,
+        "volatility_weight": 0.5,
+        "value_weight": 0.0
+      },
+      {
+        "dividend_weight": 0.6,
+        "volatility_weight": 0.4,
+        "value_weight": 0.0
+      },
+      {
+        "dividend_weight": 0.7,
+        "volatility_weight": 0.3,
+        "value_weight": 0.0
+      },
+      {
+        "dividend_weight": 0.8,
+        "volatility_weight": 0.2,
+        "value_weight": 0.0
+      },
+      {
+        "dividend_weight": 0.5,
+        "volatility_weight": 0.4,
+        "value_weight": 0.1
+      },
+      {
+        "dividend_weight": 0.6,
+        "volatility_weight": 0.3,
+        "value_weight": 0.1
+      },
+      {
+        "dividend_weight": 0.7,
+        "volatility_weight": 0.2,
+        "value_weight": 0.1
+      },
+      {
+        "dividend_weight": 0.5,
+        "volatility_weight": 0.3,
+        "value_weight": 0.2
+      },
+      {
+        "dividend_weight": 0.6,
+        "volatility_weight": 0.2,
+        "value_weight": 0.2
+      }
+    ],
+    "stage_b_caps": [
+      0.25,
+      0.3,
+      0.35
+    ],
+    "stage_b_from_top_n": 5
+  },
+  "selection_rule": [
+    "status == 'ok'",
+    "trade_count > 0",
+    "sharpe desc",
+    "annual_return desc",
+    "max_drawdown desc",
+    "turnover asc",
+    "run_id asc"
+  ],
+  "data_coverage": {
+    "daily_latest": "20260703",
+    "trade_cal_latest": "20260703",
+    "daily_basic_latest": "20260703"
+  },
+  "git_commit": "c10695129121d1de4d05b4fd16f29b1581f0f7cb",
+  "notes": "All candidates are executed serially in a plain for loop; no Tushare API calls are made. Reusable factor frames are cached in memory to avoid recomputing identical local data transforms."
+}
