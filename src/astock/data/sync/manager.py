@@ -208,7 +208,7 @@ class SyncManager:
                 df = self.client.fetch_daily(ts_code=ts_codes, trade_date=trade_date)
                 if not df.empty:
                     date_rows.append(df)
-                time.sleep(0.4)
+                time.sleep(3.0)
             if date_rows:
                 merged = pd.concat(date_rows, ignore_index=True)
                 self.store.save("daily", merged, mode="append")
@@ -241,7 +241,7 @@ class SyncManager:
             if not df.empty:
                 self.store.save("adj_factor", df, mode="append")
                 total_rows += len(df)
-            time.sleep(0.4)
+            time.sleep(0.5)
             if (idx + 1) % 100 == 0 or idx == total_dates - 1:
                 pct = (idx + 1) * 100 // total_dates
                 print(f"  [adj_factor] {idx + 1}/{total_dates} ({pct}%)  "
@@ -268,7 +268,7 @@ class SyncManager:
             if not df.empty:
                 self.store.save("daily_basic", df, mode="append")
                 total_rows += len(df)
-            time.sleep(0.4)
+            time.sleep(3.0)
             if (idx + 1) % 100 == 0 or idx == total_dates - 1:
                 pct = (idx + 1) * 100 // total_dates
                 print(f"  [daily_basic] {idx + 1}/{total_dates} ({pct}%)  "
@@ -296,7 +296,7 @@ class SyncManager:
                 if not df.empty:
                     self.store.save("suspend_d", df, mode="append")
                     total_rows += len(df)
-                time.sleep(0.4)
+                time.sleep(2.0)
             if (idx + 1) % 50 == 0 or idx == total_dates - 1:
                 pct = (idx + 1) * 100 // total_dates
                 print(f"  [suspend_d] {idx + 1}/{total_dates} ({pct}%)  "

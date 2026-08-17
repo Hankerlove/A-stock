@@ -1,0 +1,23 @@
+{
+  "skill_name": "astock-sync-verify",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我按安全方式同步 A-Stock 数据并校验，不要直接跑完整 astock data sync，之前 Tushare 报过 IP 数量超限。",
+      "expected_output": "应按 stock_basic、trade_cal、daily、adj_factor、daily_basic、suspend_d、tech_indicator 的顺序逐表同步，随后运行 tools/verify_data.py，并用 checklist 表格总结同步状态、ERROR/WARN 原因和影响归类。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我已经跑完 python tools/verify_data.py，输出里 ERROR=0 WARN=3，包含 daily -> tech_indicator 缺失键、tech_indicator 核心指标全空、异常涨跌幅样本。帮我分析原因并告诉我是否阻塞回测。",
+      "expected_output": "应把三个 WARN 分别归因：新股/窗口不足、股票池覆盖、异常涨跌幅可能来自新股/复牌/除权等；明确 ERROR=0 时数据可用，WARN 不直接阻塞，并用表格输出原因和影响归类。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "astock data sync --table daily 又失败了，报 API call failed after 3 retries: 您的IP数量超限，最大数量为5个！现在应该怎么继续同步和校验？",
+      "expected_output": "应识别为 Tushare API/IP 风控或网络出口问题，不把它误判为数据错误；说明 daily/adj_factor 对 tech_indicator 的依赖影响，并用表格输出失败表、错误文本和影响归类。",
+      "files": []
+    }
+  ]
+}

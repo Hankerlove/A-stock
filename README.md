@@ -410,7 +410,12 @@ pytest -v
 
 # 测试覆盖率
 pytest --cov=astock --cov-report=term-missing
+
+# 数据完整性校验
+python tools/verify_data.py
 ```
+
+`tools/verify_data.py` 默认忽略 2000 年以前的历史质量问题，并按 ERROR/WARN 分级输出：ERROR 会导致退出码为 1，WARN 仅提示需要关注。校验内容包括主键重复、交易日缺失、表间日期对齐、完整可用日期、2000 年后核心行情字段空值/OHLC 合法性、最近 60 天股票-日期键级别对齐、技术指标可用性和异常涨跌幅样本。
 
 ## 免责声明
 
